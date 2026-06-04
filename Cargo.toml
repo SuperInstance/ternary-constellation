@@ -1,0 +1,6 @@
+[package]
+name = "ternary-constellation"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Constellation pattern for grouping related ternary crates into deployable units with dependency resolution"
