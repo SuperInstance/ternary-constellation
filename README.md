@@ -83,3 +83,12 @@ Sits above individual skill crates (`ternary-nav`, `ternary-sensor`, etc.) and b
 ## License
 
 MIT
+
+## See Also
+- **ternary-beacon** — related fleet coordination
+- **ternary-mesh** — related fleet coordination
+- **ternary-platoon** — related fleet coordination
+- **ternary-observatory** — related fleet coordination
+- **ternary-navigator** — related fleet coordination
+- **ternary-star** — related fleet coordination
+
