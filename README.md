@@ -1,94 +1,79 @@
-# ternary-constellation
+# Ternary Constellation — Grouping Ternary Crates into Deployable Units with Dependency Resolution
 
-**Constellation pattern for grouping related ternary crates into deployable units**
+**Ternary Constellation** implements the *constellation pattern*: grouping related ternary skill crates into named, versioned deployable units with declared dependencies. It provides dependency resolution, conflict detection, cross-compilation for deployment targets, and a fleet-wide registry. A constellation maps to the "room type" concept — a Codespace room loads a specific constellation of skills.
 
-[![ternary](https://img.shields.io/badge/ecosystem-ternary-blue)](https://github.com/orgs/SuperInstance/repositories?q=ternary)
-[![tests](https://img.shields.io/badge/tests-19-green)]()
+## Why It Matters
 
-## Overview
+Modern distributed systems are composed of dozens to hundreds of micro-packages. Without a dependency-aware grouping mechanism, deployment becomes a manual exercise in tracking which packages go together. The constellation pattern solves this by treating a group of related ternary crates as a single atomic deployment unit. Dependency resolution ensures all transitive dependencies are satisfied; conflict detection prevents two crates from requiring incompatible versions of the same dependency. This is analogous to Helm charts for Kubernetes, but specialized for the ternary ecosystem where each skill operates on {-1, 0, +1} logic.
 
-Constellation pattern for grouping related ternary crates into deployable units.
+## How It Works
 
-A `Constellation` is a named group of skills (crates) with declared dependencies.
-`ConstellationBuilder` constructs them, `ConstellationResolver` resolves dependencies
-and detects conflicts, `ConstellationCompiler` bundles them for deployment targets,
-and `ConstellationRegistry` catalogs constellations across a fleet. Maps to the
-"room type" concept — a Codespace room loads a specific constellation.
+### Skill Descriptors
 
-## Architecture
+Each skill (crate) in a constellation is described by a `SkillDescriptor` carrying its name, version, and dependency list. Dependencies are expressed as string names, enabling loose coupling and version ranges.
 
-- **`SkillDescriptor`** — core data structure
-- **`Constellation`** — core data structure
-- **`ConstellationBuilder`** — core data structure
-- **`ResolutionError`** — core data structure
-- **`ConstellationResolver`** — core data structure
-- **`CompiledConstellation`** — core data structure
-- **`ConstellationCompiler`** — core data structure
-- **`ConstellationRegistry`** — core data structure
-- **`DeploymentTarget`** — state enumeration
+### Constellation Construction
 
-### Key Functions
+A `Constellation` is built incrementally via `ConstellationBuilder`. Skills are added one at a time, and the builder validates that each skill's name is unique within the constellation. The builder pattern allows fluent composition:
 
-- `new()`
-- `with_dependency()`
-- `with_dependencies()`
-- `new()`
-- `skill_names()`
-- `has_skill()`
-- `unique_dependency_count()`
-- `new()`
-- `version()`
-- `description()`
-- ... and 15 more
-
-## Why Ternary?
-
-The balanced ternary system {-1, 0, +1} (also known as Z₃) is the mathematically optimal discrete encoding:
-- **More expressive than binary**: three states capture positive, neutral, and negative
-- **Natural for decisions**: accept/reject/abstain, buy/hold/sell, agree/disagree/neutral
-- **Self-balancing**: the 0 state acts as a universal screen, preventing pathological lock-in
-- **Z₃ cyclic dynamics**: rock-paper-scissors is the only natural coordination mechanism
-
-## Stats
-
-| Metric | Value |
-|--------|-------|
-| Lines of Rust | 601 |
-| Test count | 19 |
-| Public types | 9 |
-| Public functions | 25 |
-
-## Ecosystem
-
-This crate is part of the **[SuperInstance Ternary Fleet](https://github.com/orgs/SuperInstance/repositories?q=ternary)**:
-
-- **[ternary-core](https://github.com/SuperInstance/ternary-core)** — shared traits and Z₃ arithmetic
-- **[ternary-grid](https://github.com/SuperInstance/ternary-grid)** — spatial grid with {-1, 0, +1} cells
-- **[ternary-graph](https://github.com/SuperInstance/ternary-graph)** — ternary-weighted graph algorithms
-- **[ternary-automata](https://github.com/SuperInstance/ternary-automata)** — three-state cellular automata
-- **[ternary-compiler](https://github.com/SuperInstance/ternary-compiler)** — expression compiler and optimizer
-
-200+ crates. 4,300+ tests. One pattern.
-
-## Research Context
-
-The ternary approach connects to several active research areas:
-- **Ternary Neural Networks** (TNNs): weights constrained to {-1, 0, +1} for efficient inference
-- **Huawei's ternary chip**: 7nm ternary silicon with 60% less power consumption
-- **Active inference**: free energy minimization naturally maps to ternary action selection
-- **Cyclic dominance**: RPS dynamics maintain biodiversity in spatial ecology
-- **Z₃ group theory**: the only algebraic group on three elements is cyclic addition mod 3
-
-## Usage
-
-```toml
-[dependencies]
-ternary-constellation = "0.1.0"
 ```
+Constellation::new("fleet-inference")
+    .add_skill("ternary-core", "0.1.0")
+    .add_skill("ternary-inference", "0.1.0", deps=["ternary-core"])
+```
+
+### Dependency Resolution
+
+The `ConstellationResolver` performs topological sort over the dependency graph to determine load order. Cycle detection runs in O(V + E) using DFS coloring (white/gray/black). If a cycle is found, resolution fails with the participating nodes identified. Version conflicts (two skills requiring different versions of the same dependency) are detected during resolution.
+
+### Compilation and Bundling
+
+The `ConstellationCompiler` bundles resolved constellations for specific deployment targets (GPU architecture, embedded device, etc.). It produces a self-contained package with all skills and their dependencies, ready for deployment.
+
+### Registry
+
+The `ConstellationRegistry` catalogs constellations across a fleet. It supports lookup by name, version, and tag. The registry is itself a CRDT — fleet nodes merge their local registries to maintain a globally consistent catalog.
+
+## Quick Start
 
 ```rust
-use ternary_constellation;
+use ternary_constellation::{SkillDescriptor, Constellation, ConstellationBuilder};
+
+let core = SkillDescriptor::new("ternary-core", "0.1.0");
+let inference = SkillDescriptor::new("ternary-inference", "0.1.0")
+    .with_dependency("ternary-core");
+
+let mut constellation = Constellation::new("fleet-ai");
+constellation.skills = vec![core, inference];
+
+assert!(constellation.has_skill("ternary-core"));
+assert_eq!(constellation.unique_dependency_count(), 1);
 ```
+
+```bash
+cargo add ternary-constellation
+```
+
+## API
+
+| Type / Function | Description |
+|---|---|
+| `SkillDescriptor` | `{ name, version, dependencies }` with builder methods |
+| `Constellation` | Named group of skills with `skill_names()`, `has_skill()` |
+| `ConstellationBuilder` | Fluent builder for constellations |
+| `ConstellationResolver` | Topological sort + cycle detection (O(V+E)) |
+| `ConstellationCompiler` | Bundles for deployment targets |
+| `ConstellationRegistry` | Fleet-wide CRDT catalog |
+
+## Architecture Notes
+
+Constellations are the deployment primitive in **SuperInstance**. Each room type (Codespace room) loads a specific constellation — for example, an inference room loads the "fleet-inference" constellation containing ternary-inference, ternary-core, and ternary-compression. The γ + η = C conservation law is maintained at the constellation level: the total compute budget γ plus dependency overhead η must not exceed the fleet capacity C. See [Architecture](https://github.com/SuperInstance/SuperInstance/blob/main/ARCHITECTURE.md).
+
+## References
+
+- Taylor, R. N. & Medvidovic, N. et al. "Software Architecture: Foundations, Theory, and Practice," *SEI*, 2009 — component dependency management.
+- Shapiro, Marc et al. "Conflict-free Replicated Data Types," *SSS*, 2011 — CRDT merge semantics for registries.
+- Helm, Eric. "Helm: The Package Manager for Kubernetes," *CNCF*, 2019 — dependency-aware packaging patterns.
 
 ## License
 
